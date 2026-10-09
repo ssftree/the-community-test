@@ -17,7 +17,24 @@ export const App: React.FC = () => {
     }
     return 'season-2';
   });
-  const [currentLang, setCurrentLang] = useState<Language>('zh-CN');
+  const [currentLang, setCurrentLang] = useState<Language>(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const langParam = urlParams.get('lang') as Language;
+      if (langParam && ['zh-CN', 'zh-TW', 'ko', 'en', 'ja', 'es', 'fr'].includes(langParam)) {
+        return langParam;
+      }
+      try {
+        const saved = localStorage.getItem('the_community_lang') as Language;
+        if (saved && ['zh-CN', 'zh-TW', 'ko', 'en', 'ja', 'es', 'fr'].includes(saved)) {
+          return saved;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return 'zh-CN';
+  });
   const [step, setStep] = useState<'gate' | 'testing' | 'result'>('gate');
   const [displayName, setDisplayName] = useState<string>('');
   const [currentIndex, setCurrentIndex] = useState<number>(0);
@@ -30,17 +47,52 @@ export const App: React.FC = () => {
   const t = REPLICA_I18N[currentLang];
   const currentQ: Question = QUESTIONS_DATA[currentIndex];
 
-  // Restore language from localStorage
+  // Dynamic multilingual SEO metadata synchronization
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('the_community_lang') as Language;
-      if (saved && ['zh-CN', 'zh-TW', 'ko', 'en', 'ja', 'es', 'fr'].includes(saved)) {
-        setCurrentLang(saved);
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
+    const seoMeta: Record<Language, { title: string; desc: string }> = {
+      'zh-CN': {
+        title: '思想验证区域｜The Community 第一、二季多语言价值观测试',
+        desc: '《思想验证区域：The Community》（사상검증구역: 더 커뮤니티）第一、二季多语言测试复刻平台。包含第一季 87 题政治思想坐标、第二季 37 题“看不见的手”价值观测试、算法计算、思想图腾及深度维度解析。',
+      },
+      'zh-TW': {
+        title: '思想驗證區域｜The Community 第一、二季多語言價值觀測試',
+        desc: '《思想驗證區域：The Community》（사상검증구역: 더 커뮤니티）第一、二季多語言測試復刻平台。包含第一季 87 題政治思想座標、第二季 37 題「看不見的手」價值觀測試及思想圖騰解析。',
+      },
+      ko: {
+        title: '사상검증구역: 더 커뮤니티 시즌 1·2 공식 가치관 테스트',
+        desc: '웨이브 오리지널 [사상검증구역: 더 커뮤니티] 시즌 1(87문항 정치사회 좌표) 및 시즌 2(37문항 보이지 않는 손) 가치관 테스트와 3차원 심볼 타워 결과 분석.',
+      },
+      en: {
+        title: 'The Community: Season 1 & 2 Multilingual Ideological Test',
+        desc: '1:1 replica of the official ideological tests from Korean series "The Community" (사상검증구역: 더 커뮤니티). Features Season 1 (87 questions) & Season 2 "The Invisible Hand" (37 questions).',
+      },
+      ja: {
+        title: '思想検証区域：The Community シーズン1・2 多言語価値観テスト',
+        desc: '韓国Wavve話題作「思想検証区域：The Community」シーズン1（87問政治座標）＆シーズン2（37問見えざる手）思想実験テスト・公式トーテム解析。',
+      },
+      es: {
+        title: 'The Community: Test Ideológico Multilingüe Temporada 1 y 2',
+        desc: 'Réplica 1:1 de los cuestionarios oficiales de la serie surcoreana "The Community" (사상검증구역: 더 커뮤니티). Temporada 1 (87 preguntas) y Temporada 2 (37 preguntas).',
+      },
+      fr: {
+        title: "The Community : Test Idéologique Multilingue Saisons 1 et 2",
+        desc: "Réplique 1:1 des tests idéologiques officiels de l'émission sud-coréenne \"The Community\" (사상검증구역: 더 커뮤니티). Saison 1 (87 questions) et Saison 2 (37 questions).",
+      },
+    };
+
+    const info = seoMeta[currentLang] || seoMeta['zh-CN'];
+    document.title = info.title;
+    document.documentElement.lang = currentLang;
+
+    const descEl = document.querySelector('meta[name="description"]');
+    if (descEl) descEl.setAttribute('content', info.desc);
+
+    const ogTitleEl = document.querySelector('meta[property="og:title"]');
+    if (ogTitleEl) ogTitleEl.setAttribute('content', info.title);
+
+    const ogDescEl = document.querySelector('meta[property="og:description"]');
+    if (ogDescEl) ogDescEl.setAttribute('content', info.desc);
+  }, [currentLang]);
 
   // Listen to hash change for back/forward navigation
   useEffect(() => {
@@ -59,6 +111,9 @@ export const App: React.FC = () => {
     setCurrentLang(lang);
     try {
       localStorage.setItem('the_community_lang', lang);
+      const url = new URL(window.location.href);
+      url.searchParams.set('lang', lang);
+      window.history.replaceState({}, '', url.toString());
     } catch {
       // ignore
     }

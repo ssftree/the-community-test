@@ -161,3 +161,18 @@
   border-color: #777;
   background: rgba(255, 255, 255, 0.05);
 }
+
+/* Fix CJK & Multilingual Question Wrapping & Typography */
+.question h1 {
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  max-width: 100% !important;
+  font-size: clamp(26px, 3.8vw, 58px) !important;
+  line-height: 1.25 !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* Ensure answers container and shell don't cause overflow cutoff */
+.test-shell .question {
+  overflow-y: visible !important;
+}
