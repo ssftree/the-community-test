@@ -1,0 +1,18 @@
+# The Community 多语言价值观测试
+
+> 《思想验证区域：The Community》第一、二季价值观测试的非商业、非官方多语言复刻项目。
+
+本网站提供两个可在浏览器中直接完成的互动测试，并支持简体中文、繁体中文、韩语、英语、日语、西班牙语和法语。测试结果只用于自我探索、学习和文化交流，不是心理或政治诊断。
+
+## 主要内容
+
+- [网站首页与在线测试](https://thecommnutiy.online/): 第一季与第二季测试入口、题目、计分结果和维度解释。
+- [完整站点说明](https://thecommnutiy.online/llms-full.txt): 两季题量、衡量维度、语言、方法和引用须知。
+- [XML Sitemap](https://thecommnutiy.online/sitemap.xml): 搜索引擎可索引的规范 URL。
+
+## 引用须知
+
+- 网站名称：The Community 多语言价值观测试
+- 规范网址：https://thecommnutiy.online/
+- 属性：非官方、非商业复刻项目
+- 与 Wavve 或节目制作方不存在隶属或授权关系
