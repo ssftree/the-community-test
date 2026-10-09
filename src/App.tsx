@@ -1,0 +1,664 @@
+import React, { useState, useEffect } from 'react';
+import { Language, AnswerValue, TestResult } from './types';
+import { QUESTIONS_DATA, Question } from './data/questions';
+import { calculateTestResult } from './utils/calculator';
+import {
+  REPLICA_I18N,
+  REPLICA_DIMENSIONS_GUIDE,
+  ANCHOR_SYMBOLS,
+} from './data/replicaTranslations';
+import { CustomLanguageMenu } from './components/CustomLanguageMenu';
+import { Season1View } from './components/Season1View';
+
+export const App: React.FC = () => {
+  const [currentSeason, setCurrentSeason] = useState<'season-1' | 'season-2'>(() => {
+    if (typeof window !== 'undefined' && window.location.hash.includes('season-1')) {
+      return 'season-1';
+    }
+    return 'season-2';
+  });
+  const [currentLang, setCurrentLang] = useState<Language>('zh-CN');
+  const [step, setStep] = useState<'gate' | 'testing' | 'result'>('gate');
+  const [displayName, setDisplayName] = useState<string>('');
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
+  const [hoveredChoice, setHoveredChoice] = useState<AnswerValue | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [result, setResult] = useState<TestResult | null>(null);
+  const [copied, setCopied] = useState<boolean>(false);
+
+  const t = REPLICA_I18N[currentLang];
+  const currentQ: Question = QUESTIONS_DATA[currentIndex];
+
+  // Restore language from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('the_community_lang') as Language;
+      if (saved && ['zh-CN', 'zh-TW', 'ko', 'en', 'ja', 'es', 'fr'].includes(saved)) {
+        setCurrentLang(saved);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Listen to hash change for back/forward navigation
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (window.location.hash.includes('season-1')) {
+        setCurrentSeason('season-1');
+      } else if (window.location.hash.includes('season-2')) {
+        setCurrentSeason('season-2');
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const handleLanguageChange = (lang: Language) => {
+    setCurrentLang(lang);
+    try {
+      localStorage.setItem('the_community_lang', lang);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSwitchSeason = (season: 'season-1' | 'season-2') => {
+    setCurrentSeason(season);
+    window.location.hash = `#${season}`;
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  // Keyboard navigation for test
+  useEffect(() => {
+    if (step !== 'testing' || isSubmitting) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      const key = e.key.toLowerCase();
+
+      if (key === 'o' || key === '1') {
+        e.preventDefault();
+        handleAnswer('O');
+      } else if (key === 'x' || key === '2') {
+        e.preventDefault();
+        handleAnswer('X');
+      } else if (e.key === 'ArrowLeft' && currentIndex > 0) {
+        e.preventDefault();
+        setCurrentIndex((prev) => Math.max(0, prev - 1));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [step, currentIndex, isSubmitting, answers]);
+
+  const handleStart = (e: React.FormEvent) => {
+    e.preventDefault();
+    setStep('testing');
+    setCurrentIndex(0);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  const handleAnswer = (choice: AnswerValue) => {
+    const nextAnswers = { ...answers, [currentQ.id]: choice };
+    setAnswers(nextAnswers);
+
+    if (currentIndex < QUESTIONS_DATA.length - 1) {
+      setTimeout(() => {
+        setCurrentIndex((prev) => prev + 1);
+        setHoveredChoice(null);
+      }, 240);
+    } else {
+      // Complete test
+      setIsSubmitting(true);
+      setTimeout(() => {
+        const computed = calculateTestResult(nextAnswers);
+        setResult(computed);
+        setIsSubmitting(false);
+        setStep('result');
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      }, 600);
+    }
+  };
+
+  const handleQuickFillRandom = () => {
+    const randomAnswers: Record<string, AnswerValue> = {};
+    QUESTIONS_DATA.forEach((q) => {
+      randomAnswers[q.id] = Math.random() > 0.5 ? 'O' : 'X';
+    });
+    setAnswers(randomAnswers);
+    setIsSubmitting(true);
+    setTimeout(() => {
+      const computed = calculateTestResult(randomAnswers);
+      setResult(computed);
+      setIsSubmitting(false);
+      setStep('result');
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }, 400);
+  };
+
+  const handleRetake = () => {
+    setAnswers({});
+    setCurrentIndex(0);
+    setResult(null);
+    setStep('testing');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  const handleShare = async () => {
+    const shareUrl = window.location.href;
+    const shareText = `${displayName ? `${displayName}${t.ownerSuffix}` : t.yourResult} ${t.howMeasured} - ${result?.fullCode}`;
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(`${shareUrl} ${shareText}`);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      }
+    } catch {
+      // fallback
+    }
+  };
+
+  // Result card classes calculation exactly like original
+  const resultCardClasses = result
+    ? [
+        result.judgment.winningSideKo === '결과'
+          ? 'result-card--result'
+          : 'result-card--principle',
+        result.agency.winningSideKo === '능력'
+          ? 'result-card--ability'
+          : 'result-card--structure',
+        result.meaning.winningSideKo === '실리'
+          ? 'result-card--utility'
+          : 'result-card--meaning',
+      ].join(' ')
+    : '';
+
+  // Route to Season 1
+  if (currentSeason === 'season-1') {
+    return (
+      <Season1View
+        currentLang={currentLang}
+        onLanguageChange={handleLanguageChange}
+        onSwitchSeason={handleSwitchSeason}
+      />
+    );
+  }
+
+  // 1. GATE SCREEN (INTRO)
+  if (step === 'gate') {
+    return (
+      <div className="shell shell--dark">
+        <div className="route-wipe" aria-hidden="true">
+          <i></i>
+          <i></i>
+          <i></i>
+        </div>
+        <header className="site-header">
+          <a className="brand" href="/" aria-label="더 커뮤니티 홈" onClick={(e) => e.preventDefault()}>
+            <img className="brand__wordmark" src="/brand/community-wordmark.svg" alt="" />
+          </a>
+          <nav>
+            <a href="#broadcast">ON AIR</a>
+            <a
+              href="#season-1"
+              onClick={(e) => {
+                e.preventDefault();
+                handleSwitchSeason('season-1');
+              }}
+            >
+              시즌 1
+            </a>
+            <a
+              href="#season-2"
+              className="is-active"
+              onClick={(e) => {
+                e.preventDefault();
+                handleSwitchSeason('season-2');
+              }}
+            >
+              시즌 2
+            </a>
+            <CustomLanguageMenu currentLang={currentLang} onLanguageChange={handleLanguageChange} />
+          </nav>
+        </header>
+
+        <main className="gate">
+          <form className="gate__form" onSubmit={handleStart}>
+            <img
+              className="season-lockup season-lockup--two"
+              src="/brand/season-2-lockup.svg"
+              alt="더 커뮤니티2 보이지 않는 손"
+            />
+            <h1>{t.gateTitle}</h1>
+            <label className="visually-hidden" htmlFor="season-2-name">
+              {t.nameLabel}
+            </label>
+            <input
+              id="season-2-name"
+              maxLength={24}
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder={t.namePlaceholder}
+              autoComplete="off"
+            />
+            <span className="gate__name-guide">{t.nameGuide}</span>
+
+            <div className="test-notices" aria-label="테스트 안내">
+              {t.notices.map((item, idx) => (
+                <p key={idx}>※ {item}</p>
+              ))}
+            </div>
+
+            <button className="button button--blue" type="submit">
+              <span>{t.startBtn}</span>
+              <b aria-hidden="true">↘</b>
+            </button>
+
+            {/* Discreet random fill for fast demonstration */}
+            <button
+              type="button"
+              className="random-fill-btn"
+              onClick={handleQuickFillRandom}
+              title="一键随机模拟填答，快速体验完整结果"
+            >
+              <span>🎲 {t.quickFillRandom}</span>
+            </button>
+          </form>
+        </main>
+      </div>
+    );
+  }
+
+  // 2. TESTING SCREEN
+  if (step === 'testing') {
+    const selected = answers[currentQ.id];
+
+    return (
+      <div className="test-shell test-shell--two">
+        <header>
+          <a
+            className="brand"
+            href="/"
+            aria-label="더 커뮤니티 홈"
+            onClick={(e) => {
+              e.preventDefault();
+              setStep('gate');
+            }}
+          >
+            <img className="brand__wordmark" src="/brand/community-wordmark.svg" alt="" />
+          </a>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <CustomLanguageMenu currentLang={currentLang} onLanguageChange={handleLanguageChange} />
+            <span>
+              {String(currentIndex + 1).padStart(2, '0')} / {QUESTIONS_DATA.length}
+            </span>
+          </div>
+        </header>
+
+        <div className="progress">
+          <i
+            style={{
+              width: `${((currentIndex + 1) / QUESTIONS_DATA.length) * 100}%`,
+            }}
+          />
+        </div>
+
+        <main className="question" aria-live="polite">
+          <div className="question__meta">
+            <div className="section-label">
+              <span>{String(currentIndex + 1).padStart(2, '0')}</span>
+              <b>{t.questionLabel}</b>
+            </div>
+            <span>{t.keyboardGuide}</span>
+          </div>
+
+          <span className="question__ghost" aria-hidden="true">
+            {String(currentIndex + 1).padStart(2, '0')}
+          </span>
+
+          <h1>
+            <span>Q.</span>
+            {currentQ.prompt[currentLang]}
+          </h1>
+
+          <div className="answers answers--2">
+            <button
+              type="button"
+              className={`${selected === 'O' ? 'is-selected' : ''} ${
+                hoveredChoice === 'O' ? 'is-hovered' : ''
+              }`}
+              onClick={() => handleAnswer('O')}
+              onPointerEnter={(e) => e.pointerType === 'mouse' && setHoveredChoice('O')}
+              onPointerLeave={() => setHoveredChoice(null)}
+              disabled={isSubmitting}
+            >
+              <small>01</small>
+              <b>O</b>
+              <span>{t.agreeLabel}</span>
+              <i>↘</i>
+            </button>
+
+            <button
+              type="button"
+              className={`${selected === 'X' ? 'is-selected' : ''} ${
+                hoveredChoice === 'X' ? 'is-hovered' : ''
+              }`}
+              onClick={() => handleAnswer('X')}
+              onPointerEnter={(e) => e.pointerType === 'mouse' && setHoveredChoice('X')}
+              onPointerLeave={() => setHoveredChoice(null)}
+              disabled={isSubmitting}
+            >
+              <small>02</small>
+              <b>X</b>
+              <span>{t.disagreeLabel}</span>
+              <i>↘</i>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            className="back"
+            disabled={currentIndex === 0 || isSubmitting}
+            onClick={() => {
+              if (currentIndex > 0) setCurrentIndex((prev) => prev - 1);
+            }}
+          >
+            {t.prevQuestionBtn} <kbd>←</kbd>
+          </button>
+
+          {/* Quick random fill helper button */}
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <button
+              type="button"
+              className="random-fill-btn"
+              onClick={handleQuickFillRandom}
+            >
+              <span>🎲 {t.quickFillRandom}</span>
+            </button>
+          </div>
+
+          {isSubmitting && <div className="sending">{t.calculating}</div>}
+        </main>
+      </div>
+    );
+  }
+
+  // 3. RESULTS SCREEN
+  if (step === 'result' && result) {
+    const winningMeaning = t.termsMap[result.meaning.winningSideKo] || result.meaning.winningSideKo;
+    const oppositeMeaning = t.oppositeMap[result.meaning.winningSideKo] || result.meaning.winningSideKo;
+
+    const winningAgency = t.termsMap[result.agency.winningSideKo] || result.agency.winningSideKo;
+    const oppositeAgency = t.oppositeMap[result.agency.winningSideKo] || result.agency.winningSideKo;
+
+    const winningJudgment = t.termsMap[result.judgment.winningSideKo] || result.judgment.winningSideKo;
+    const oppositeJudgment = t.oppositeMap[result.judgment.winningSideKo] || result.judgment.winningSideKo;
+
+    return (
+      <div className="shell shell--dark">
+        <div className="route-wipe" aria-hidden="true">
+          <i></i>
+          <i></i>
+          <i></i>
+        </div>
+        <header className="site-header">
+          <a
+            className="brand"
+            href="/"
+            aria-label="더 커뮤니티 홈"
+            onClick={(e) => {
+              e.preventDefault();
+              setStep('gate');
+            }}
+          >
+            <img className="brand__wordmark" src="/brand/community-wordmark.svg" alt="" />
+          </a>
+          <nav>
+            <a
+              href="#season-1"
+              onClick={(e) => {
+                e.preventDefault();
+                handleSwitchSeason('season-1');
+              }}
+            >
+              시즌 1
+            </a>
+            <a
+              href="#season-2"
+              className="is-active"
+              onClick={(e) => {
+                e.preventDefault();
+                setStep('gate');
+              }}
+            >
+              시즌 2
+            </a>
+            <CustomLanguageMenu currentLang={currentLang} onLanguageChange={handleLanguageChange} />
+          </nav>
+        </header>
+
+        <main className="result-page">
+          <div className="result-page__index" aria-hidden="true">
+            RESULT
+            <br />
+            <b>SYMBOL</b>
+          </div>
+
+          {/* Result Card */}
+          <section
+            className={`result-card result-card--symbol result-card--season-2 ${resultCardClasses}`}
+            data-result-code={result.fullCode}
+          >
+            <div className="result-card__head">
+              <div className="section-label">
+                <span>02</span>
+                <b>YOUR INVISIBLE HAND</b>
+              </div>
+              <span>{displayName ? `${displayName}${t.ownerSuffix}` : t.yourResult}</span>
+            </div>
+
+            <div className="result-symbol-stage">
+              <div className="season-two-result-figure">
+                {/* 4 Anchor Symbols Guide */}
+                <div className="season-two-symbol-guide">
+                  <ol aria-label="심볼 성향 4단계">
+                    {ANCHOR_SYMBOLS.map((item) => (
+                      <li key={item.code}>
+                        <svg
+                          aria-label={item.ariaLabel[currentLang]}
+                          className="season-two-symbol-guide__symbol"
+                          data-symbol-code={item.code}
+                          role="img"
+                          viewBox="0 0 74.3 106.84"
+                        >
+                          <image
+                            height={36.87}
+                            href={`/brand/season-2-symbols/${item.meaning.code}${item.meaning.intensity}.svg`}
+                            width={74.3}
+                            x={0}
+                            y={0}
+                          />
+                          <image
+                            height={18.76}
+                            href={`/brand/season-2-symbols/${item.agency.code}${item.agency.intensity}.svg`}
+                            width={74.3}
+                            x={0}
+                            y={36.87}
+                          />
+                          <image
+                            height={51.21}
+                            href={`/brand/season-2-symbols/${item.judgment.code}${item.judgment.intensity}.svg`}
+                            width={74.3}
+                            x={0}
+                            y={55.63}
+                          />
+                        </svg>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                {/* Main Result Symbol SVG */}
+                <div className="season-two-result-symbol-control">
+                  <svg
+                    aria-label="보이지 않는 손 결과 심볼"
+                    className="season-two-result-symbol"
+                    data-symbol-code={result.fullCode}
+                    role="img"
+                    viewBox="0 0 74.3 106.84"
+                  >
+                    <image
+                      height={36.87}
+                      href={`/brand/season-2-symbols/${result.meaning.symbolFile}`}
+                      width={74.3}
+                      x={0}
+                      y={0}
+                    />
+                    <image
+                      height={18.76}
+                      href={`/brand/season-2-symbols/${result.agency.symbolFile}`}
+                      width={74.3}
+                      x={0}
+                      y={36.87}
+                    />
+                    <image
+                      height={51.21}
+                      href={`/brand/season-2-symbols/${result.judgment.symbolFile}`}
+                      width={74.3}
+                      x={0}
+                      y={55.63}
+                    />
+                  </svg>
+                </div>
+
+                {/* 3 Dimensions Score List */}
+                <ol aria-label="심볼 차원별 결과" className="season-two-result-dimensions">
+                  <li>
+                    <small>01</small>
+                    <span className="result-dimension-labels">
+                      <em className="result-dimension-labels__opposite">
+                        {currentLang === 'ko' ? `${oppositeMeaning}보다` : `${oppositeMeaning} ${t.than}`}
+                      </em>
+                      <b>{winningMeaning}</b>
+                    </span>
+                    <strong>
+                      {result.meaning.intensity}
+                      <em>{t.point}</em>
+                    </strong>
+                  </li>
+
+                  <li>
+                    <small>02</small>
+                    <span className="result-dimension-labels">
+                      <em className="result-dimension-labels__opposite">
+                        {currentLang === 'ko' ? `${oppositeAgency}보다` : `${oppositeAgency} ${t.than}`}
+                      </em>
+                      <b>{winningAgency}</b>
+                    </span>
+                    <strong>
+                      {result.agency.intensity}
+                      <em>{t.point}</em>
+                    </strong>
+                  </li>
+
+                  <li>
+                    <small>03</small>
+                    <span className="result-dimension-labels">
+                      <em className="result-dimension-labels__opposite">
+                        {currentLang === 'ko' ? `${oppositeJudgment}보다` : `${oppositeJudgment} ${t.than}`}
+                      </em>
+                      <b>{winningJudgment}</b>
+                    </span>
+                    <strong>
+                      {result.judgment.intensity}
+                      <em>{t.point}</em>
+                    </strong>
+                  </li>
+                </ol>
+              </div>
+            </div>
+          </section>
+
+          {/* Result Guide Accordions */}
+          <section className="result-guide result-guide--season-2">
+            <div className="result-guide__notices">
+              <p>※ {t.densityNotice}</p>
+              <p>※ {t.termsNotice}</p>
+            </div>
+            <h2>{t.howMeasured}</h2>
+            <div className="result-guide__sections">
+              {REPLICA_DIMENSIONS_GUIDE.map((dim, idx) => (
+                <details key={dim.id} open={idx === 0}>
+                  <summary>{dim.title[currentLang]}</summary>
+                  <div className="result-guide__body">
+                    <p className="result-guide__lead">{dim.intro[currentLang]}</p>
+                    <dl className="result-guide__contrasts">
+                      <div className="result-guide__contrast result-guide__contrast--ideal">
+                        <dt>{dim.contrasts[0].term[currentLang]}</dt>
+                        <dd>{dim.contrasts[0].desc[currentLang]}</dd>
+                      </div>
+                      <div className="result-guide__contrast result-guide__contrast--real">
+                        <dt>{dim.contrasts[1].term[currentLang]}</dt>
+                        <dd>{dim.contrasts[1].desc[currentLang]}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                </details>
+              ))}
+            </div>
+          </section>
+
+          {/* Share Panel */}
+          <section className="share-panel">
+            <a
+              className="result-program-card--mobile"
+              href="https://m.site.naver.com/2fi4N"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <img
+                src="/assets/season-2-program-card.jpg"
+                alt="더 커뮤니티 2 프로그램관 지금 보러 가기"
+                width={800}
+                height={400}
+                loading="lazy"
+              />
+            </a>
+
+            <div className="section-label">
+              <span>NEXT</span>
+              <b>MOVE ANOTHER</b>
+            </div>
+
+            <p>
+              {t.shareCatchphrase1}
+              <br />
+              <em>{t.shareCatchphrase2}</em>
+            </p>
+
+            <button type="button" className="button button--red" onClick={handleShare}>
+              <span>{copied ? t.copied : t.shareBtn}</span>
+              <b aria-hidden="true">{copied ? '✓' : '↗'}</b>
+            </button>
+
+            <button
+              type="button"
+              className="button button--black"
+              style={{ marginTop: 12 }}
+              onClick={handleRetake}
+            >
+              <span>{t.retakeBtn}</span>
+              <b aria-hidden="true">↺</b>
+            </button>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
+  return null;
+};
