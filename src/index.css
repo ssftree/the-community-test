@@ -176,3 +176,64 @@
 .test-shell .question {
   overflow-y: visible !important;
 }
+
+/* Social Share & Image Export Buttons */
+.social-share-group {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.social-share-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px 10px;
+  font: 600 11px/1 "IBM Plex Mono", monospace;
+  letter-spacing: 0.05em;
+  background: #111318;
+  color: #c9ccd6;
+  border: 1px solid #282c37;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  border-radius: 0;
+}
+
+.social-share-btn:hover {
+  background: #1f232d;
+  color: #fff;
+  border-color: #555b6e;
+}
+
+.social-share-btn--twitter:hover {
+  border-color: #fff;
+  background: #1a1a1a;
+  color: #fff;
+}
+
+.social-share-btn--telegram:hover {
+  border-color: #24a1de;
+  background: rgba(36, 161, 222, 0.15);
+  color: #fff;
+}
+
+.button--image-save {
+  background: #1c1f26 !important;
+  color: #fff !important;
+  border: 1px solid #3c4250 !important;
+  margin-top: 12px;
+}
+
+.button--image-save:hover {
+  background: #2a2e39 !important;
+  border-color: #636b80 !important;
+}
+
+.button--image-save:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}

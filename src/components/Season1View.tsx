@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useId } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
+import { toPng } from 'html-to-image';
 import { Language } from '../types';
 import { SEASON_1_QUESTIONS } from '../data/season1Questions';
 import {
@@ -43,6 +44,8 @@ export const Season1View: React.FC<Season1ViewProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [result, setResult] = useState<Season1CalculatedResult | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
+  const resultCardRef = useRef<HTMLElement>(null);
 
   const t = REPLICA_I18N[currentLang];
   const s1Notices = SEASON_1_NOTICES[currentLang] || SEASON_1_NOTICES['ko'];
@@ -133,6 +136,46 @@ export const Season1View: React.FC<Season1ViewProps> = ({
     } catch {
       // fallback
     }
+  };
+
+  const handleSaveImage = async () => {
+    if (!resultCardRef.current || isGeneratingImage) return;
+    setIsGeneratingImage(true);
+    try {
+      const dataUrl = await toPng(resultCardRef.current, {
+        cacheBust: true,
+        pixelRatio: 2.5,
+        backgroundColor: '#f2f0ea',
+      });
+      const link = document.createElement('a');
+      link.download = `the-community-s1-${result?.fourLetterCode || 'result'}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('Failed to generate image', err);
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  const handleShareTwitter = () => {
+    const url = `https://thecommnutiy.online/?lang=${currentLang}#season-1`;
+    const text = `${displayName ? `${displayName}${t.ownerSuffix}` : t.yourResult} ${result?.fourLetterCode} (${result?.resultType}) #TheCommunity #사상검증구역`;
+    window.open(
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+      '_blank',
+      'width=550,height=420'
+    );
+  };
+
+  const handleShareTelegram = () => {
+    const url = `https://thecommnutiy.online/?lang=${currentLang}#season-1`;
+    const text = `${displayName ? `${displayName}${t.ownerSuffix}` : t.yourResult} ${result?.fourLetterCode} (${result?.resultType})`;
+    window.open(
+      `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
+      '_blank',
+      'width=550,height=420'
+    );
   };
 
   // 1. GATE SCREEN (INTRO)
@@ -360,6 +403,7 @@ export const Season1View: React.FC<Season1ViewProps> = ({
           </div>
 
           <section
+            ref={resultCardRef}
             className="result-card result-card--symbol result-card--season-1"
             data-result-code={result.fourLetterCode}
           >
@@ -511,11 +555,56 @@ export const Season1View: React.FC<Season1ViewProps> = ({
               <em>움직입니다.</em>
             </p>
 
+            {/* 1. Copy Link */}
             <button type="button" className="button button--red" onClick={handleShare}>
               <span>{copied ? t.copied : t.shareBtn}</span>
               <b aria-hidden="true">{copied ? '✓' : '↗'}</b>
             </button>
 
+            {/* 2. Download Result Card Image */}
+            <button
+              type="button"
+              className="button button--image-save"
+              onClick={handleSaveImage}
+              disabled={isGeneratingImage}
+            >
+              <span>
+                {isGeneratingImage
+                  ? currentLang === 'ko'
+                    ? '이미지 생성 중…'
+                    : currentLang === 'en'
+                    ? 'Generating Image…'
+                    : '正在生成长图…'
+                  : currentLang === 'ko'
+                  ? '📷 결과 이미지 저장'
+                  : currentLang === 'en'
+                  ? '📷 Save Result Image'
+                  : '📷 保存测试结果图片'}
+              </span>
+              <b aria-hidden="true">{isGeneratingImage ? '…' : '↓'}</b>
+            </button>
+
+            {/* 3. Social Media Share Buttons */}
+            <div className="social-share-group">
+              <button
+                type="button"
+                className="social-share-btn social-share-btn--twitter"
+                onClick={handleShareTwitter}
+                title="Share on X"
+              >
+                <span>𝕏 分享</span>
+              </button>
+              <button
+                type="button"
+                className="social-share-btn social-share-btn--telegram"
+                onClick={handleShareTelegram}
+                title="Share on Telegram"
+              >
+                <span>✈️ Telegram</span>
+              </button>
+            </div>
+
+            {/* 4. Retake Button */}
             <button
               type="button"
               className="button button--black"

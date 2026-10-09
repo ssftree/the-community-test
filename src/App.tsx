@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { toPng } from 'html-to-image';
 import { Language, AnswerValue, TestResult } from './types';
 import { QUESTIONS_DATA, Question } from './data/questions';
 import { calculateTestResult } from './utils/calculator';
@@ -43,6 +44,8 @@ export const App: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [result, setResult] = useState<TestResult | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
+  const resultCardRef = useRef<HTMLElement>(null);
 
   const t = REPLICA_I18N[currentLang];
   const currentQ: Question = QUESTIONS_DATA[currentIndex];
@@ -214,6 +217,95 @@ export const App: React.FC = () => {
     } catch {
       // fallback
     }
+  };
+
+  const handleSaveImage = async () => {
+    if (!resultCardRef.current || isGeneratingImage) return;
+    setIsGeneratingImage(true);
+    try {
+      const dataUrl = await toPng(resultCardRef.current, {
+        cacheBust: true,
+        pixelRatio: 2.5,
+        backgroundColor: '#f2f0ea',
+      });
+      const link = document.createElement('a');
+      link.download = `the-community-s2-${result?.fullCode || 'result'}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('Failed to generate image', err);
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  const handleShareTwitter = () => {
+    const url = `https://thecommnutiy.online/?lang=${currentLang}#season-2`;
+    const text = `${displayName ? `${displayName}${t.ownerSuffix}` : t.yourResult} [${result?.threeLetterCode} / ${result?.resultTypeKo}] ${t.howMeasured} #TheCommunity #사상검증구역`;
+    window.open(
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+      '_blank',
+      'width=550,height=420'
+    );
+  };
+
+  const handleShareTelegram = () => {
+    const url = `https://thecommnutiy.online/?lang=${currentLang}#season-2`;
+    const text = `${displayName ? `${displayName}${t.ownerSuffix}` : t.yourResult} [${result?.threeLetterCode} / ${result?.resultTypeKo}]`;
+    window.open(
+      `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
+      '_blank',
+      'width=550,height=420'
+    );
+  };
+
+  const renderDimensionLabel = (winning: string, opposite: string) => {
+    if (currentLang === 'ko') {
+      return (
+        <>
+          <em className="result-dimension-labels__opposite">{opposite}보다</em>
+          <b>{winning}</b>
+        </>
+      );
+    }
+    if (currentLang === 'zh-CN' || currentLang === 'zh-TW') {
+      return (
+        <>
+          <em className="result-dimension-labels__opposite">比起{opposite}</em>
+          <b>{winning}</b>
+        </>
+      );
+    }
+    if (currentLang === 'ja') {
+      return (
+        <>
+          <em className="result-dimension-labels__opposite">{opposite}より</em>
+          <b>{winning}</b>
+        </>
+      );
+    }
+    if (currentLang === 'es') {
+      return (
+        <>
+          <em className="result-dimension-labels__opposite">frente a {opposite}</em>
+          <b>{winning}</b>
+        </>
+      );
+    }
+    if (currentLang === 'fr') {
+      return (
+        <>
+          <em className="result-dimension-labels__opposite">face à {opposite}</em>
+          <b>{winning}</b>
+        </>
+      );
+    }
+    return (
+      <>
+        <em className="result-dimension-labels__opposite">over {opposite}</em>
+        <b>{winning}</b>
+      </>
+    );
   };
 
   // Result card classes calculation exactly like original
@@ -505,6 +597,7 @@ export const App: React.FC = () => {
 
           {/* Result Card */}
           <section
+            ref={resultCardRef}
             className={`result-card result-card--symbol result-card--season-2 ${resultCardClasses}`}
             data-result-code={result.fullCode}
           >
@@ -595,10 +688,7 @@ export const App: React.FC = () => {
                   <li>
                     <small>01</small>
                     <span className="result-dimension-labels">
-                      <em className="result-dimension-labels__opposite">
-                        {currentLang === 'ko' ? `${oppositeMeaning}보다` : `${oppositeMeaning} ${t.than}`}
-                      </em>
-                      <b>{winningMeaning}</b>
+                      {renderDimensionLabel(winningMeaning, oppositeMeaning)}
                     </span>
                     <strong>
                       {result.meaning.intensity}
@@ -609,10 +699,7 @@ export const App: React.FC = () => {
                   <li>
                     <small>02</small>
                     <span className="result-dimension-labels">
-                      <em className="result-dimension-labels__opposite">
-                        {currentLang === 'ko' ? `${oppositeAgency}보다` : `${oppositeAgency} ${t.than}`}
-                      </em>
-                      <b>{winningAgency}</b>
+                      {renderDimensionLabel(winningAgency, oppositeAgency)}
                     </span>
                     <strong>
                       {result.agency.intensity}
@@ -623,10 +710,7 @@ export const App: React.FC = () => {
                   <li>
                     <small>03</small>
                     <span className="result-dimension-labels">
-                      <em className="result-dimension-labels__opposite">
-                        {currentLang === 'ko' ? `${oppositeJudgment}보다` : `${oppositeJudgment} ${t.than}`}
-                      </em>
-                      <b>{winningJudgment}</b>
+                      {renderDimensionLabel(winningJudgment, oppositeJudgment)}
                     </span>
                     <strong>
                       {result.judgment.intensity}
@@ -695,11 +779,56 @@ export const App: React.FC = () => {
               <em>{t.shareCatchphrase2}</em>
             </p>
 
+            {/* 1. Copy Link */}
             <button type="button" className="button button--red" onClick={handleShare}>
               <span>{copied ? t.copied : t.shareBtn}</span>
               <b aria-hidden="true">{copied ? '✓' : '↗'}</b>
             </button>
 
+            {/* 2. Download Result Card Image */}
+            <button
+              type="button"
+              className="button button--image-save"
+              onClick={handleSaveImage}
+              disabled={isGeneratingImage}
+            >
+              <span>
+                {isGeneratingImage
+                  ? currentLang === 'ko'
+                    ? '이미지 생성 중…'
+                    : currentLang === 'en'
+                    ? 'Generating Image…'
+                    : '正在生成长图…'
+                  : currentLang === 'ko'
+                  ? '📷 결과 이미지 저장'
+                  : currentLang === 'en'
+                  ? '📷 Save Result Image'
+                  : '📷 保存测试结果图片'}
+              </span>
+              <b aria-hidden="true">{isGeneratingImage ? '…' : '↓'}</b>
+            </button>
+
+            {/* 3. Social Media Share Buttons */}
+            <div className="social-share-group">
+              <button
+                type="button"
+                className="social-share-btn social-share-btn--twitter"
+                onClick={handleShareTwitter}
+                title="Share on X"
+              >
+                <span>𝕏 分享</span>
+              </button>
+              <button
+                type="button"
+                className="social-share-btn social-share-btn--telegram"
+                onClick={handleShareTelegram}
+                title="Share on Telegram"
+              >
+                <span>✈️ Telegram</span>
+              </button>
+            </div>
+
+            {/* 4. Retake Button */}
             <button
               type="button"
               className="button button--black"
