@@ -486,7 +486,11 @@ export const Season1View: React.FC<Season1ViewProps> = ({
           {/* Share Panel */}
           <section className="share-panel">
             <div className="result-program-promo">
-              <img src="/brand/season-1-bottom-banner.png" alt="사상검증구역 더 커뮤니티 방송 안내" />
+              <img
+                src="/brand/season-1-lockup.svg"
+                alt="사상검증구역 더 커뮤니티 방송 안내"
+                style={{ background: 'var(--paper)', padding: 'clamp(24px, 6vw, 56px)' }}
+              />
               <a
                 href="https://www.wavve.com/player/vod?programid=C9901_C99000000124&landing=season"
                 target="_blank"

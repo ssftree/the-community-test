@@ -73,6 +73,26 @@ npm run build
 npm run preview
 ```
 
+## Cloudflare deployment
+
+The production site is deployed as a Cloudflare Worker with Static Assets by
+[GitHub Actions](.github/workflows/cloudflare.yml). Its infrastructure config is
+kept in [`wrangler.jsonc`](wrangler.jsonc).
+
+- Pull requests run a clean install and production build without receiving
+  deployment credentials.
+- Pushes to `main` deploy only after the build succeeds.
+- Repeated runs for the same branch cancel obsolete in-progress runs.
+- The workflow uses the GitHub `production` environment and expects these
+  environment secrets:
+  - `CLOUDFLARE_ACCOUNT_ID`
+  - `CLOUDFLARE_API_TOKEN` with `Workers Scripts: Edit` access for the target
+    account
+
+Do not also enable Cloudflare Builds Git integration for this Worker; GitHub
+Actions is the single deployment path. To redeploy the current `main` commit,
+run the **Cloudflare** workflow manually from GitHub Actions.
+
 ---
 
 ## 📜 Academic Reference & Disclaimer
